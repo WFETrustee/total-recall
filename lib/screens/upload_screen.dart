@@ -1,8 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
-import 'dart:io';
-import 'dart:convert';
+import 'dart:typed_data';
+import 'package:total_recall/services/upload_service.dart';
 
 class UploadScreen extends StatefulWidget {
   const UploadScreen({super.key});
@@ -16,74 +16,86 @@ class _UploadScreenState extends State<UploadScreen> {
   bool isUploading = false;
   String? uploadStatus;
 
+  final UploadService _uploadService = UploadService();
+
   Future<void> pickFile() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['mp3', 'm4a', 'wav', 'mp4', 'mov', 'mkv', 'webm', 'avi'],
+      type: kIsWeb ? FileType.media : FileType.custom,
+      allowedExtensions: kIsWeb
+          ? null
+          : ['mp3', 'm4a', 'wav', 'mp4', 'mov', 'mkv', 'webm', 'avi'],
+      withData: kIsWeb, // Needed to get bytes on web
     );
 
     if (result != null && result.files.isNotEmpty) {
       final file = result.files.first;
-
       setState(() {
         selectedFileName = file.name;
-        isUploading = true;
         uploadStatus = null;
       });
 
-      try {
-        final request = http.MultipartRequest(
-          'POST',
-          Uri.parse('http://192.168.1.124:5000/upload'),
+      Uint8List? fileBytes;
+      if (kIsWeb) {
+        fileBytes = file.bytes;
+      } else {
+        // Read from path on mobile/desktop
+        fileBytes = await file.readStream!.fold<Uint8List>(
+          Uint8List(0),
+          (previous, element) => Uint8List.fromList(
+            previous + element,
+          ),
         );
-        request.files.add(await http.MultipartFile.fromPath('file', file.path!));
-
-        final response = await request.send();
-
-        if (response.statusCode == 200) {
-          final body = await response.stream.bytesToString();
-          final json = jsonDecode(body);
-          setState(() => uploadStatus = '✅ Uploaded: ${json['filename']}');
-        } else {
-          setState(() => uploadStatus = '❌ Failed with code: ${response.statusCode}');
-        }
-      } catch (e) {
-        setState(() => uploadStatus = '❌ Error: $e');
-      } finally {
-        setState(() => isUploading = false);
       }
+
+      if (fileBytes != null) {
+        await uploadFile(fileBytes, file.name);
+      } else {
+        setState(() {
+          uploadStatus = "❌ Could not read file bytes.";
+        });
+      }
+    }
+  }
+
+  Future<void> uploadFile(Uint8List bytes, String fileName) async {
+    setState(() {
+      isUploading = true;
+      uploadStatus = "⏳ Uploading $fileName...";
+    });
+
+    try {
+      final result = await _uploadService.uploadFile(bytes, fileName);
+      setState(() {
+        uploadStatus = "✅ Upload successful: $result";
+      });
+    } catch (e) {
+      setState(() {
+        uploadStatus = "❌ Upload failed: $e";
+      });
+    } finally {
+      setState(() {
+        isUploading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Upload Recording')),
+      appBar: AppBar(title: const Text("Upload File")),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: isUploading ? null : pickFile,
-              icon: const Icon(Icons.upload_file),
-              label: const Text('Select File'),
+              child: const Text("Pick a File"),
             ),
             const SizedBox(height: 20),
-            if (selectedFileName != null)
-              Text(
-                'Selected: $selectedFileName',
-                style: const TextStyle(fontSize: 16),
-              ),
-            const SizedBox(height: 10),
+            if (selectedFileName != null) Text("Selected: $selectedFileName"),
             if (isUploading) const CircularProgressIndicator(),
-            if (uploadStatus != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  uploadStatus!,
-                  style: const TextStyle(fontSize: 16),
-                ),
-              ),
+            if (uploadStatus != null) Text(uploadStatus!),
           ],
         ),
       ),
