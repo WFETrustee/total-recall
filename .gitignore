@@ -51,9 +51,10 @@ coverage/
 # ----------------------------------------
 commands.txt
 temp.txt
-run_android.sh
-run_web.sh
-run_dev.sh
+*.sh
+# Allow only the boot loader script
+!boot_total_recall.sh
+
 
 # Logs
 *.log
