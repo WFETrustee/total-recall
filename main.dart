@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/upload_screen.dart';
+import 'lib/screens/upload_screen.dart';
 
 void main() {
   runApp(const TotalRecallApp());
