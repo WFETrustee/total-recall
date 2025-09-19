@@ -19,7 +19,7 @@ fi
 echo ""
 echo "Which platform do you want to launch Flutter on?"
 echo "1) Android"
-echo "2) Web"
+echo "2) Web (LAN-accessible)"
 echo "3) iPhone (iOS Simulator)"
 read -rp "Enter choice [1-3]: " platform_choice
 
@@ -31,22 +31,19 @@ case "$platform_choice" in
     AVD_NAME="android"
     EMULATOR_LOG="$PROJECT_ROOT/logs/emulator_$(date +%Y%m%d_%H%M%S).log"
 
-    # Ensure logs folder exists
     mkdir -p "$PROJECT_ROOT/logs"
 
-    # Check if emulator is already running
     if ! adb devices | grep -q "emulator-"; then
         echo "🔄 Starting Android emulator: $AVD_NAME"
         echo "📄 Logging emulator output to $EMULATOR_LOG"
         nohup ~/Library/Android/sdk/emulator/emulator -avd "$AVD_NAME" > "$EMULATOR_LOG" 2>&1 &
         
         echo "⏳ Waiting for emulator to boot..."
-        sleep 10  # Initial delay to allow emulator startup
+        sleep 10
 
-        # Wait for boot to complete
         until adb shell getprop sys.boot_completed | grep -m 1 "1" > /dev/null 2>&1; do
-        echo "🕓 Still booting..."
-        sleep 2
+          echo "🕓 Still booting..."
+          sleep 2
         done
 
         echo "✅ Android emulator booted successfully."
@@ -54,12 +51,12 @@ case "$platform_choice" in
         echo "✅ Android emulator already running."
     fi
 
-    echo "📱 Launching Flutter app on Android emulator..."
     flutter run
     ;;
   2)
-    echo "🌐 Launching Flutter app in Chrome browser..."
-    flutter run -d chrome
+    echo "🌐 Launching Flutter app as LAN-accessible web server..."
+    FLUTTER_WEB_PORT=8080
+    flutter run -d web-server --web-hostname=0.0.0.0 --web-port=$FLUTTER_WEB_PORT
     ;;
   3)
     echo "🍎 Launching Flutter app on iOS simulator..."
